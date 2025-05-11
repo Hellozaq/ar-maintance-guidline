@@ -6,10 +6,9 @@ import com.capstone.ar_guideline.exceptions.ErrorCode;
 import com.capstone.ar_guideline.services.IJWTService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.Map;
 import java.util.function.Function;
@@ -27,22 +26,22 @@ public class JWTServiceImpl implements IJWTService {
 
   public String generateToken(UserDetails userDetails) {
     return Jwts.builder()
-        .setSubject(userDetails.getUsername())
-        .setIssuedAt(new Date(System.currentTimeMillis()))
-        .setExpiration(
+        .subject(userDetails.getUsername())
+        .issuedAt(new Date(System.currentTimeMillis()))
+        .expiration(
             new Date(System.currentTimeMillis() + accessTokenExpiration)) // Use configured time
-        .signWith(getSigninKey(), SignatureAlgorithm.HS256)
+        .signWith(getSigninKey())
         .compact();
   }
 
   public String generateRefreshToken(Map<String, Object> extraClaims, UserDetails userDetails) {
     return Jwts.builder()
-        .setClaims(extraClaims)
-        .setSubject(userDetails.getUsername())
-        .setIssuedAt(new Date(System.currentTimeMillis()))
-        .setExpiration(
+        .claims(extraClaims)
+        .subject(userDetails.getUsername())
+        .issuedAt(new Date(System.currentTimeMillis()))
+        .expiration(
             new Date(System.currentTimeMillis() + refreshTokenExpiration)) // Use configured time
-        .signWith(getSigninKey(), SignatureAlgorithm.HS256)
+        .signWith(getSigninKey())
         .compact();
   }
 
@@ -51,12 +50,11 @@ public class JWTServiceImpl implements IJWTService {
   }
 
   private <T> T extractClaims(String token, Function<Claims, T> claimsResolvers) {
-
     final Claims claims = extractAllClaims(token);
     return claimsResolvers.apply(claims);
   }
 
-  private Key getSigninKey() {
+  private SecretKey getSigninKey() {
     byte[] key =
         Decoders.BASE64.decode("413F4428472B4B6250655368566D5970337336763979244226452948404D6351");
     return Keys.hmacShaKeyFor(key);
@@ -64,11 +62,11 @@ public class JWTServiceImpl implements IJWTService {
 
   private Claims extractAllClaims(String token) throws UnauthorizedException {
     try {
-      return Jwts.parserBuilder()
-          .setSigningKey(getSigninKey())
+      return Jwts.parser()
+          .verifyWith(getSigninKey())
           .build()
-          .parseClaimsJws(token)
-          .getBody();
+          .parseSignedClaims(token)
+          .getPayload();
     } catch (Exception e) {
       throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
